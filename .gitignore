@@ -1,0 +1,6 @@
+*.json
+venv
+__pycache__
+venv/Lib/
+.idea
+config.ini

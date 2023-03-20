@@ -1,0 +1,5 @@
+[DEFAULT]
+api_callback_for_push_notifications = "https://myHttpsServer.ForGoogleCallback.com"
+service_account_file = "myserviceaccount-keyfile-here.json"
+service_account_email = "google-calender-api@myserviceaccount.iam.gserviceaccount.com"
+discord_bot_token = 'Secret Discord Bot Token Here'

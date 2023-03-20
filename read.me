@@ -1,0 +1,32 @@
+How to use a the Discord Bot:
+
+bei freigabe folgende email adresse eingeben: google-calender-api@calenderdiscordbot.iam.gserviceaccount.com
+
+
+Set up your own instance on the Discord Bot:
+
+Create a Discord Bot in the discord developer portal.
+
+If you wish to setup your own Discord Bot you need to create a google cloud project to access the google calendar api.
+I found this tutorial on this: https://stateful.com/blog/events-in-the-google-calendar-API
+
+The same instructions in text form in case the tutorial is no longer available:
+- go to the google cloud platform and create a project
+- In the 'IAM and admin' tab, navigate to the sub point 'Service and accounts'
+- create a service account with the + option.
+- assign a name and press 'create and continue'
+- grant the service account the role 'Owner' and press 'continue'
+- then press 'done'
+- Back on the service accounts page, click the three dots under actions for the newly created service account email. Press manage keys
+- On the 'ADD key' dropdown select 'create new key'
+- In the subsequent popup select JSON and press 'Create'. Save the Json file and place it next to they main.py python file of the discord bot.
+- Input your created service account email as SERVICE_ACCOUNT_EMAIL in main.py
+- input the json files name as SERVICE_ACCOUNT_FILE in main.py.
+- Next you need to enable the Calender API for your google cloud project.
+- navigate to 'APIs and services' -> 'Enable APIs and services'.
+- press '+ Enable APIS and Services'
+- use the search field to find 'calendar'
+- Then enable the Google Calendar API (through klicking on 'Manage')
+
+For the notification, when a new event is created in a calendar, you need to set up a https address that google can reach for the push notifications.
+API_CALLBACK_FOR_PUSH_NOTIFICATIONS

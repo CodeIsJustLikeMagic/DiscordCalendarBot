@@ -1,0 +1,11 @@
+[Unit]
+Description=A Discord Bot that shows Google Calendar Events
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/ubuntu/CalendarDiscordBot/venv/bin/python3 main.py
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target
