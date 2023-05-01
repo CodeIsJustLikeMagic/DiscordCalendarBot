@@ -23,7 +23,7 @@ bot = commands.Bot(command_prefix="!", intents = intents)
 
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
-saved_calendar_path = 'saved_calenders.json' # saves channelids and associated calendar ids in a json file.
+saved_calendar_path = 'saved_calendars.json' # saves channelids and associated calendar ids in a json file.
 
 # if you wanted to set up your own calendar discord bot, you would need to make your own google cloud project and replace these authorization thingies
 # tutorial on this: https://stateful.com/blog/events-in-the-google-calendar-API
@@ -43,7 +43,7 @@ def get_delegate_credentials():
     return delegated_credentials
 
 # bot only responds to messages that start with !calendar
-@bot.command() # !calender test 1 2 3
+@bot.command() # !calendar test 1 2 3
 async def calendar(ctx, *args):
     print(ctx, args)
     # ctx is a context object, includes channel ID
@@ -63,7 +63,7 @@ async def calendar(ctx, *args):
         return
 
     if task_desc == "register":
-        await registerCalender(ctx, args)
+        await registerCalendar(ctx, args)
         return
 
     if task_desc == "display" or task_desc == "show":
@@ -82,10 +82,10 @@ async def calendar(ctx, *args):
         await show_channel_information(ctx, args)
         return
 
-    # delete calender id
+    # delete calendar id
     await help(ctx) # if the task_desc is unknown show help again so user may correct their spelling or something
 
-# compile a message to display the events in the next few days in all calenders registered to the channel that issued the command.
+# compile a message to display the events in the next few days in all calendars registered to the channel that issued the command.
 async def showDays(ctx, args):
     days = 7
     calendar_name_filter = None
@@ -104,10 +104,10 @@ async def showDays(ctx, args):
     maxtime = datetime.datetime(today.year, today.month, today.day) + datetime.timedelta(days=days + 1) # set to days+1 at 00:00:00.
     maxtime = maxtime.isoformat() + "Z"
 
-    calender_ids = getSavedCalendersForChannel(str(ctx.channel.id))
+    calendar_ids = getSavedCalendarsForChannel(str(ctx.channel.id))
 
-    if len(calender_ids) == 0:
-        await ctx.send("Calender Bot does not know any Calenders associated with this channel.")
+    if len(calendar_ids) == 0:
+        await ctx.send("Calendar Bot does not know any Calendars associated with this channel.")
         return
 
     # authenticate access through an email address invited to have access to the calendars.
@@ -115,11 +115,11 @@ async def showDays(ctx, args):
 
     discord_events = []
     service = build('calendar', 'v3', credentials=delegated_credentials)
-    for calenderId in calender_ids:  # loop through all registered calendars and pull their events into the discord_events list
+    for calendarId in calendar_ids:  # loop through all registered calendars and pull their events into the discord_events list
 
         try:
-            cal_data = service.events().list(calendarId=calenderId, timeMin=mintime, singleEvents=True, timeMax=maxtime, orderBy='startTime').execute()
-            #url = "https://www.googleapis.com/calendar/v3/calendars/" + calenderId + "/events?timeMin="+mintime+"&singleEvents=True&orderBy=startTime&timeMax="+maxtime+"&key=" + google_api_key
+            cal_data = service.events().list(calendarId=calendarId, timeMin=mintime, singleEvents=True, timeMax=maxtime, orderBy='startTime').execute()
+            #url = "https://www.googleapis.com/calendar/v3/calendars/" + calendarId + "/events?timeMin="+mintime+"&singleEvents=True&orderBy=startTime&timeMax="+maxtime+"&key=" + google_api_key
             #response = requests.get(url)
 
             cal_name = cal_data['summary']
@@ -144,7 +144,7 @@ async def showDays(ctx, args):
                 discord_event_string = f"{date_time.strftime('%A')} {str(date)}   **{event_name}**   ({cal_name})\n"
                 discord_events.append((date_time, discord_event_string))
         except HttpError:
-            await ctx.send(f"Calender Bot was not granted access to a Calender. Please make sure to invite the Email address: {SERVICE_ACCOUNT_EMAIL} to have access to your Google Calender. The Calender ID: {calenderId}")
+            await ctx.send(f"Calendar Bot was not granted access to a Calendar. Please make sure to invite the Email address: {SERVICE_ACCOUNT_EMAIL} to have access to your Google Calendar. The Calendar ID: {calendarId}")
             return
 
     if len(discord_events) > 0:
@@ -157,13 +157,13 @@ async def showDays(ctx, args):
 
 #show a list of commands with description
 async def help(ctx):
-    await ctx.send(f"Calender Bot can display a Google Calender or notify you of newly created events.\n\n"
+    await ctx.send(f"Calendar Bot can display a Google Calendar or notify you of newly created events.\n\n"
                    f"Commands:\n"
-                   f"`!calendar register <Google Calendar ID>` Calender Bot will remember your Google Calender and can later display it. You can register multiple Calendars in a single Channel.\n"
+                   f"`!calendar register <Google Calendar ID>` Calendar Bot will remember your Google Calendar and can later display it. You can register multiple Calendars in a single Channel.\n"
                    f"`!calendar display` show Events in the registered Calendars for the next 7 days.\n"
                    f"`!calendar display 14` You can adjust the timespan for the displayed Events. Here the timespan is set to 14 days.\n"
                    f"`!calendar display 7 \"<calendar name>\"` Calendar Bot can display a specific calendar indicated by their name.\n"
-                   f"`!calendar watch <Google Calendar ID>` Calender Bot will notify you of newly created Events for the given Calendar.\n"
+                   f"`!calendar watch <Google Calendar ID>` Calendar Bot will notify you of newly created Events for the given Calendar.\n"
                    f"`!calendar info` Calendar Bot shows you which calendars are registered or watched in this channel.\n"
                    f"`!calendar help` displays this help message again.\n"
                    f"`!calendar extendedhelp` displays moooooaaaarrrr help text.\n\n"
@@ -176,13 +176,16 @@ async def extendedhelp(ctx):
                    f"`!calendar watch` = `push` = `notifyeventcreation`\n"
                    f"`!calendar info` = `channelinfo`= `channel-info` = `\"channel info\"`")
 
-#check if calender id exists. save calender with reference to the server and channel
-async def registerCalender(ctx, args):
+#check if calendar id exists. save calendar with reference to the server and channel
+async def registerCalendar(ctx, args):
     if len(args) <= 1:
-        await ctx.send("Calender Bot is sad because you didn't give him a Calender-Id. Please input your command like this: !calender register your_calenders_ID_to_be_registered_to_this_channel")
+        await ctx.send(f"To register a Google Calendar: \n"
+                       f"1. Invite the the Email address {SERVICE_ACCOUNT_EMAIL} to have access to your Google Calendar. To do this, visit the webpage of google calendar. Open your calendars's settings and scroll to the section 'Für bestimmte Personen oder Gruppen freigeben'\n"
+                       f"2. Then find and copy the Calendar ID in the section 'Integrate Calendar', a little further down.\n"
+                       f"3. In this discord channel send the command: `!calendar register the_calendar_id_you_just_copied`")
     else:
-        calender_id_raw = args[1]
-        calendarID= str(calender_id_raw)
+        calendar_id_raw = args[1]
+        calendarID= str(calendar_id_raw)
         # try to reach the calendar ID
 
         # authenticate access through an email address invited to have access to the calendars.
@@ -192,28 +195,31 @@ async def registerCalender(ctx, args):
             cal_data = service.events().list(calendarId=calendarID, maxResults=2).execute()
             cal_name = cal_name = cal_data['summary']
         except HttpError as e:
-            await ctx.send(f"Calender Bot was unable to access this Calendar. "
+            await ctx.send(f"Calendar Bot was unable to access this Calendar. "
                            f"Please make sure to invite the Email address: {SERVICE_ACCOUNT_EMAIL} to have "
-                           f"access to your Google Calender. You could also double check the ID. "
-                           f"You can find the ID by vising the webpage of google calendar. Open your Calendar's settings and scroll to the section 'Integrate Calendar'. "
+                           f"access to your Google Calendar. You could also double check the ID. "
+                           f"You can find the ID by vising the webpage of google calendar. Open your calendar's settings and scroll to the section 'Integrate Calendar'. "
                            f"The ID should look like this: <random numbers and letters>@group.calendar.google.com\n\n"
-                           f"Calendar Bot encountered the following Error: {e}")
+                           f"Calendar Bot has encountered the following Error: {e}")
             return
         channel_id = str(ctx.channel.id)
-        calender_ids_for_this_channel = saveCalenderForChannel(ctx, channel_id, calender_id_raw)
-        await ctx.send(f"Calendar Bot now knows that {len(calender_ids_for_this_channel)} calender(s) belong to this channel")
+        calendar_ids_for_this_channel = saveCalendarForChannel(ctx, channel_id, calendar_id_raw)
+        await ctx.send(f"Calendar Bot now knows that {len(calendar_ids_for_this_channel)} calendar(s) belong to this channel")
     pass
 
 async def notify_event_creation(ctx, args):
     if len(args) <= 1:
-        await ctx.send("Calender Bot is sad because you didn't give him a Calender-Id. Please input your command like this: !calender notifyeventcreation your_calenders_ID_to_be_watched_to_this_channel")
+        await ctx.send(f"Sign up for event creation notifications for a Google Calendar: \n"
+                       f"1. Invite the the Email address {SERVICE_ACCOUNT_EMAIL} to have access to your Google Calendar. To do this, visit the webpage of google calendar. Open your calendars's settings and scroll to the section 'Für bestimmte Personen oder Gruppen freigeben'\n"
+                       f"2. Then find and copy the Calendar ID in the section 'Integrate Calendar', a little further down.\n"
+                       f"3. In this discord channel send the command: `!calendar notifyeventcreation the_calendar_id_you_just_copied`")
     else:
-        calender_id_raw = args[1]
-        calendarID= str(calender_id_raw)
+        calendar_id_raw = args[1]
+        calendarID= str(calendar_id_raw)
 
         save_data = getSavedWatchData(str(ctx.channel.id))
         if calendarID in save_data:
-            await ctx.send(f"Calender Bot is already listening to push notifications for this Calender-ID.")
+            await ctx.send(f"Calendar Bot is already listening to push notifications for this Calendar-ID.")
             return
 
         # register bot at calendar api for push notifications on event creation.
@@ -224,7 +230,7 @@ async def _create_new_watch_subscription(discord_channel, calendarID:str, channe
     if discord_channel == None:
         discord_channel = bot.get_channel(channelid)
         if discord_channel == None:
-            print("Discord Channel for a Watch subscription could not be found in discord. Channel might be deleted. Not re-subscribing.")
+            print("Discord Channel for a push notification could not be found in discord. Channel might be deleted. Not re-subscribing.")
     cal_uuid = uuid.uuid1()
     token = channelid
 
@@ -240,10 +246,10 @@ async def _create_new_watch_subscription(discord_channel, calendarID:str, channe
         # data = {'kind': 'api#channel', 'id': '2b77ae26-cbe1-11ed-981c-cf2ae50fa78c', 'resourceId': 'nLR4uoL1fandShtZSbrnMTRC7Zk', 'resourceUri': 'https://www.googleapis.com/calendar/v3/calendars/3d3818dd4d2e0bab2152b10e15587669709315ad5f0b3001d0e4acab139896bb%40group.calendar.google.com/events?alt=json', 'token': '1068140692901216326', 'expiration': '1680445147000'}
         # print(data)
         saveWatchData(discord_channel, str(channelid), calendarID, token, str(cal_uuid), data["resourceId"], data["expiration"])
-        await discord_channel.send(f"Calender Bot is now listening for push notifications for this Calender-ID")
+        await discord_channel.send(f"Calendar Bot is now listening for push notifications for this Calendar-ID")
     except HttpError as err:
         await discord_channel.send(
-            f"Calender Bot encountered an error when asking google calendar api to make push notifications for the Calender-ID. {err}")
+            f"Calendar Bot encountered an error when asking google calendar api to make push notifications for the Calendar-ID. {err}")
         print(err)
 
 async def new_event_creation_callback_display(Goog_Resource_URI, Goog_Channel_Expireation, Goog_Channel_Token, Goog_Channel_Id):
@@ -261,8 +267,8 @@ async def new_event_creation_callback_display(Goog_Resource_URI, Goog_Channel_Ex
     # I think we only care about new events though.
 
     split_url = urlsplit(Goog_Resource_URI)
-    calenderId:str = str(split_url.path.split("/")[4])
-    calenderId = calenderId.replace("%40", "@")
+    calendarId:str = str(split_url.path.split("/")[4])
+    calendarId = calendarId.replace("%40", "@")
 
     now = datetime.datetime.utcnow()
     updateMin = now - datetime.timedelta(minutes=2)# set to days+1 at 00:00:00.
@@ -273,7 +279,7 @@ async def new_event_creation_callback_display(Goog_Resource_URI, Goog_Channel_Ex
     service = build('calendar', 'v3', credentials=delegate_credentials)
     st = ''
     try:
-        cal_data = service.events().list(calendarId=calenderId, updatedMin=updateMin).execute()
+        cal_data = service.events().list(calendarId=calendarId, updatedMin=updateMin).execute()
         cal_name = cal_data['summary']
         events = cal_data['items']
         for event in events:
@@ -316,10 +322,10 @@ async def new_event_creation_callback_display(Goog_Resource_URI, Goog_Channel_Ex
             await channel.send(quote_form)
     except HttpError as e:
         await channel.send(
-            f"A registered Calender has been changed. However, Calender Bot was not granted access to the Calender, and cannot tell you anything about the change. Please make sure to invite the Email address: {SERVICE_ACCOUNT_EMAIL} to have access to your Google Calender. The Calender ID: {calenderId}. Error Massage: {e}")
+            f"A registered Calendar has been changed. However, Calendar Bot was not granted access to the Calendar, and cannot tell you anything about the change. Please make sure to invite the Email address: {SERVICE_ACCOUNT_EMAIL} to have access to your Google Calendar. The Calendar ID: {calendarId}. Error Massage: {e}")
         print("Error on reading updated changes for calendar.", e)
     except Exception as anythingElse:
-        await channel.send(f"Calender Bot got an Error. {anythingElse}")
+        await channel.send(f"Calendar Bot got an Error. {anythingElse}")
 
 async def show_channel_information(ctx, args):
     if os.path.exists(saved_calendar_path):
@@ -341,9 +347,9 @@ async def show_channel_information(ctx, args):
 # count downtime somewhere for scheduled display
 
 
-# we might be saving a lot of calenders. There is no real need to have them all in cache at once. I do not expect that people will want to display their calender super often.
+# we might be saving a lot of calendars. There is no real need to have them all in cache at once. I do not expect that people will want to display their calendar super often.
 # it's probably better to save the data in a legit database. like sqlite or something. though. maybe not. idk.
-def getSavedCalendersForChannel(channel: str):
+def getSavedCalendarsForChannel(channel: str):
     if os.path.exists(saved_calendar_path) :
         f = open(saved_calendar_path)
         data = json.load(f)
@@ -363,7 +369,7 @@ def getSavedWatchData(channel: str):
                 return data[channel]["watch"]
     return []
 
-def saveWatchData(discord_channel, channel:str, calenderid:str, token:str, id:str, resourceID:str, expiration_unix:str):
+def saveWatchData(discord_channel, channel:str, calendarid:str, token:str, id:str, resourceID:str, expiration_unix:str):
     if os.path.exists(saved_calendar_path):
         f = open(saved_calendar_path)
         data = json.load(f)
@@ -374,21 +380,21 @@ def saveWatchData(discord_channel, channel:str, calenderid:str, token:str, id:st
     if channel in data: # checks if channel is known. can either have a display or a watch section.
         saved_channel = data[channel]
         if "watch" in saved_channel:
-            if calenderid in saved_channel["watch"]:
-                #ctx.send("Calender Bot is already listening to push notifications for this Calender-ID.")
+            if calendarid in saved_channel["watch"]:
+                #ctx.send("Calendar Bot is already listening to push notifications for this Calendar-ID.")
                 # override existing data, for creating a new watch subscription when previous one expires
-                data[channel]["watch"][calenderid] = {"caluuid": id, "token": token, "resourceID": resourceID, "expiration": expiration_unix}
-                discord_channel.send(f"Calendar Bot has re-subscribed the watch notifications for calendar {calenderid}")
+                data[channel]["watch"][calendarid] = {"caluuid": id, "token": token, "resourceID": resourceID, "expiration": expiration_unix}
+                discord_channel.send(f"Calendar Bot has re-subscribed the watch notifications for calendar {calendarid}")
             else:
-                # watch existiert, aber nicht diese calender id
-                data[channel]["watch"][calenderid] = {"caluuid": id, "token": token, "resourceID": resourceID, "expiration": expiration_unix}
+                # watch existiert, aber nicht diese calendar id
+                data[channel]["watch"][calendarid] = {"caluuid": id, "token": token, "resourceID": resourceID, "expiration": expiration_unix}
         else: # channel is known but no watch section yet.
             data[channel]["watch"] = {}
-            data[channel]["watch"][calenderid] = {"caluuid": id, "token": token, "resourceID": resourceID, "expiration": expiration_unix}
+            data[channel]["watch"][calendarid] = {"caluuid": id, "token": token, "resourceID": resourceID, "expiration": expiration_unix}
     else:
         data[channel] = {}
         data[channel]["watch"] = {}
-        data[channel]["watch"][calenderid] = {"caluuid": id, "token": token, "resourceID": resourceID, "expiration": expiration_unix} #this is the first calender id for this channel
+        data[channel]["watch"][calendarid] = {"caluuid": id, "token": token, "resourceID": resourceID, "expiration": expiration_unix} #this is the first calendar id for this channel
 
     # saving channels and their associated calendar ids in a json file
     print("writing json ", json)
@@ -396,7 +402,7 @@ def saveWatchData(discord_channel, channel:str, calenderid:str, token:str, id:st
         json.dump(data, f)
     return data[channel]["watch"]
 
-def saveCalenderForChannel(ctx, channel: str, calenderid :str):
+def saveCalendarForChannel(ctx, channel: str, calendarid :str):
     if os.path.exists(saved_calendar_path):
         f = open(saved_calendar_path)
         data = json.load(f)
@@ -407,17 +413,17 @@ def saveCalenderForChannel(ctx, channel: str, calenderid :str):
     if channel in data: # checks if channel is known. can either have a display or a watch section.
         saved_channel = data[channel]
         if "display" in saved_channel:
-            if calenderid in saved_channel["display"]:
-                ctx.send("Calender Bot already knows this Calender-ID is associated with this channel")
+            if calendarid in saved_channel["display"]:
+                ctx.send("Calendar Bot already knows this Calendar-ID is associated with this channel")
             else:
-                calenderids = saved_channel["display"]
-                calenderids.append(calenderid)
-                data[channel]["display"] = calenderids  # add new calender id to already saved list of calender ids for this channel
+                calendarids = saved_channel["display"]
+                calendarids.append(calendarid)
+                data[channel]["display"] = calendarids  # add new calendar id to already saved list of calendar ids for this channel
         else: # channel is known but no display section yet.
-            data[channel]["display"] = [calenderid]
+            data[channel]["display"] = [calendarid]
     else:
         data[channel] = {}
-        data[channel]["display"] = [calenderid] #this is the first calender id for this channel
+        data[channel]["display"] = [calendarid] #this is the first calendar id for this channel
 
     # saving channels and their associated calendar ids in a json file
     print("writing json ", json)
