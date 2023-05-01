@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/ubuntu/CalendarDiscordBot/venv/bin/python3 main.py
+ExecStart=/home/ubuntu/DiscordCalendarBot/venv/bin/python3 main.py
 TimeoutStopSec=5
 
 [Install]
