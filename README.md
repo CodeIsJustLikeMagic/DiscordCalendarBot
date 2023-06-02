@@ -1,7 +1,14 @@
 How to use a the Discord Bot:
 
-Den Google Kalender für folgende email adresse freigeben: google-calender-api@calenderdiscordbot.iam.gserviceaccount.com
+Invite the Bot to the Discord Server. Type !calendar to view the help text.
 
+The Bot has two main functionalities: Showing the next events in a Calendar as a List, and informing you whenever an event is created.
+
+Show next appointments:
+To set this functionality up, use the !calendar register <Google Calendar ID> command. The Calendar Bot will remember your Google Calendar and can later display it when someone types the command !calendar display. You can register multiple calendars for one discord channel. 
+
+Notify new events:
+To set this functionality up, use the !calendar watch <Google Calendar ID> command. The Calendar Bot will notify you of newly created events for the given calendar.
 
 Set up your own instance on the Discord Bot:
 
@@ -28,5 +35,5 @@ The same instructions in text form in case the tutorial is no longer available:
 - use the search field to find 'calendar'
 - Then enable the Google Calendar API (through klicking on 'Manage')
 
-For the notification, when a new event is created in a calendar, you need to set up a https address that google can reach for the push notifications.
+For the notification, when a new event is created in a calendar, you need to set up a https address that google can reach, for the push notifications.
 API_CALLBACK_FOR_PUSH_NOTIFICATIONS
