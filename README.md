@@ -1,3 +1,5 @@
+## Discord Calendar Bot ##
+
 The Calendar Bot can display a Google Calendar in a Discord channel or notify you of newly created events. 
 You can register multiple calendars per channel. Only discord users with the permission to read a channel can see the events.
 To this end, I am not using discords server-wide event functionality but rather simple text messages. This allows the use of many different calendars in larger discord communities. 
@@ -17,7 +19,7 @@ To set this functionality up, use the ```!calendar watch <Google Calendar ID>```
 Create a Discord Bot in the discord developer portal.
 
 If you wish to setup your own Discord Bot you need to create a google cloud project to access the google calendar api.
-I found this tutorial on this: https://stateful.com/blog/events-in-the-google-calendar-API
+I followed this tutorial: https://stateful.com/blog/events-in-the-google-calendar-API
 
 The same instructions in text form in case the tutorial is no longer available:
 - go to the google cloud platform and create a project
@@ -38,4 +40,4 @@ The same instructions in text form in case the tutorial is no longer available:
 - Then enable the Google Calendar API (through klicking on 'Manage')
 
 For the notification, when a new event is created in a calendar, you need to set up a https address that google can reach, for the push notifications.
-API_CALLBACK_FOR_PUSH_NOTIFICATIONS
+[API_CALLBACK_FOR_PUSH_NOTIFICATIONS](https://developers.google.com/calendar/api/guides/push)
