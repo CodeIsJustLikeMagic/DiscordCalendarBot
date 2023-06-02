@@ -1,16 +1,18 @@
-How to use a the Discord Bot:
+The Calendar Bot can display a Google Calendar in a Discord channel or notify you of newly created events. 
+You can register multiple calendars per channel. Only discord users with the permission to read a channel can see the events.
+To this end, I am not using discords server-wide event functionality but rather simple text messages. This allows the use of many different calendars in larger discord communities. 
 
-Invite the Bot to the Discord Server. Type !calendar to view the help text.
+## How to use a the Discord Bot: ##
 
-The Bot has two main functionalities: Showing the next events in a Calendar as a List, and informing you whenever an event is created.
+Invite the Bot to the Discord Server. Type ```!calendar``` to view the help text.
 
 Show next appointments:
-To set this functionality up, use the !calendar register <Google Calendar ID> command. The Calendar Bot will remember your Google Calendar and can later display it when someone types the command !calendar display. You can register multiple calendars for one discord channel. 
+To set this functionality up, use the ```!calendar register <Google Calendar ID>``` command. The Calendar Bot will remember your Google Calendar and can later display it when someone types the command ```!calendar display```. You can register multiple calendars for one discord channel. 
 
 Notify new events:
-To set this functionality up, use the !calendar watch <Google Calendar ID> command. The Calendar Bot will notify you of newly created events for the given calendar.
+To set this functionality up, use the ```!calendar watch <Google Calendar ID>``` command. The Calendar Bot will notify you of newly created events for the given calendar.
 
-Set up your own instance on the Discord Bot:
+## Set up your own instance of the Discord Bot: ##
 
 Create a Discord Bot in the discord developer portal.
 
