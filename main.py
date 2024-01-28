@@ -66,6 +66,10 @@ async def calendar(ctx, *args):
         await registerCalendar(ctx, args)
         return
 
+    if task_desc == "setcolor" or task_desc == "color" or task_desc == "setColor" or task_desc == "calendarcolor":
+        await setCalendarColor(ctx, args)
+        return
+
     if task_desc == "display" or task_desc == "show" or task_desc == "table" or task_desc == "showtable":
         await showDays(ctx, args, True)
         return
@@ -92,7 +96,7 @@ async def calendar(ctx, *args):
 
 # retrieves events in the next few days from all calendars registered to the channel that issued the command.
 # either compiles result into text or image response
-async def showDays(ctx, args, asImage=False):
+async def showDays(ctx, args, asImage=False): #args: show day_count clanedar_name_filter
     days = 7
     calendar_name_filter = None
     if len(args) > 1:
@@ -129,12 +133,14 @@ async def showDays(ctx, args, asImage=False):
         try:
             cal_data = service.events().list(calendarId=calendarId, timeMin=mintime, singleEvents=True, timeMax=maxtime,
                                              orderBy='startTime').execute()
-            #cal_color = service.colors().get().execute() # returns color id-rgb mappings for calendar and events but I don't know which ids belong to which event. they wont tell me their color Id
-            #cal_color = service.calendarList().get(calendarId=calendarId).execute() # I think we dont have enough authentication to get colors :/
+            # cal_color = service.colors().get().execute() # returns color id-rgb mappings for calendar and events but I don't know which ids belong to which event. they wont tell me their color Id
+            # cal_color = service.calendarList().get(calendarId=calendarId).execute() # I think we dont have enough authentication to get colors :/
             # url = "https://www.googleapis.com/calendar/v3/calendars/" + calendarId + "/events?timeMin="+mintime+"&singleEvents=True&orderBy=startTime&timeMax="+maxtime+"&key=" + google_api_key
             # response = requests.get(url)
 
             cal_name = cal_data['summary']
+            cal_color = calendar_ids[calendarId][
+                "color"]  # sadly cannot retreive colors from api. Let users set color for discord bot
 
             if calendar_name_filter is not None:
                 if cal_name not in calendar_name_filter:
@@ -153,7 +159,7 @@ async def showDays(ctx, args, asImage=False):
                     date_time = datetime.datetime.strptime(date_s, "%Y-%m-%dT%H:%M:%S")
                     date = date_time.strftime("%d.%m.%Y   %H:%M")
                 event_name = event['summary']
-                discord_event_info = (date_time.strftime('%A'), str(date), event_name, cal_name)
+                discord_event_info = (date_time.strftime('%A'), str(date), event_name, cal_name, cal_color)
                 discord_events.append((date_time, discord_event_info))
         except HttpError:
             await ctx.send(
@@ -167,14 +173,14 @@ async def showDays(ctx, args, asImage=False):
         else:
             await showAsText(ctx, discord_events)
     else:
-        await ctx.send("No events in calendar")
+        await ctx.send(f"¯\_(ツ)_/¯\nNo events in calendar in the next {days} days.")
 
 
 # compile events into a text response
 async def showAsText(ctx, discord_events):
     discord_events = [x for _, x in sorted(discord_events)]
     event_strings = [f"{weekday} {date}   **{event_name}**   ({cal_name})\n" for
-                     weekday, date, event_name, cal_name in discord_events]
+                     weekday, date, event_name, cal_name, cal_color in discord_events]
     out = "".join(event_strings)
     quote_form = '>>> {}'.format(out)
     await ctx.send(quote_form)
@@ -217,13 +223,15 @@ async def showAsImage(ctx, event, calcount):  # pretty table
 
         print(datesOfWeek_dt)
         for day_dt in datesOfWeek_dt:
-            relevant_events = [(d, x) for d,x in event if d.date() == day_dt.date()]
+            relevant_events = [(d, x) for d, x in event if d.date() == day_dt.date()]
             event_strings = np.array([f"{d.strftime('%H:%M')} {x[2]}" for d, x in relevant_events])
-            filler = np.array(["" for i in range(calcount-len(relevant_events))])
+            filler = np.array(["" for _ in range(calcount - len(relevant_events))])
             day_data = np.concatenate((np.array([day_dt.strftime("%d.%m.%Y")]), event_strings, filler))
 
-
-            day_color = [dc, bgc, bgc]
+            event_colors = np.array([x[4] for d, x in relevant_events])
+            filler_colors = np.array([bgc for _ in range(calcount - len(relevant_events))])
+            day_color = np.concatenate(([dc], event_colors, filler_colors))
+            # day_color = [dc, bgc, bgc]
             # for day in week
             # [date, events at that date, filled up with "" to get to calcount]
             # add to week_data
@@ -236,7 +244,7 @@ async def showAsImage(ctx, event, calcount):  # pretty table
         np_color = np.array(week_colors)
         np_color = np.transpose(np_color)
 
-        #append to table_data
+        # append to table_data
         table_data = np.concatenate((table_data, np_week))
         table_colors = np.concatenate((table_colors, np_color))
 
@@ -273,7 +281,7 @@ async def showAsImage(ctx, event, calcount):  # pretty table
         cellDict[(0, i)].set_text_props(color=color_font, ha="center")
 
         for j in range(1, len(table_data)):  # event rows + date rows
-            cellDict[(j, i)].set_height(.3 / calcount)
+            cellDict[(j, i)].set_height(0.15)
             cellDict[(j, i)].set_edgecolor(color_edges)
             cellDict[(j, i)].set_text_props(color=color_font, ha="left")
             cellDict[(j, i)].PAD = 0.03
@@ -285,7 +293,7 @@ async def showAsImage(ctx, event, calcount):  # pretty table
 
     fig.canvas.draw()
     bbox = ytable.get_window_extent(fig.canvas.get_renderer())
-    bbox = bbox.from_extents(bbox.xmin - 0, bbox.ymin - 1, bbox.xmax + 2, bbox.ymax + 1)
+    bbox = bbox.from_extents(bbox.xmin - 0, bbox.ymin - 0, bbox.xmax + 2, bbox.ymax + 1)
     bbox_inches = bbox.transformed(fig.dpi_scale_trans.inverted())
 
     fig.savefig('calendar.png', bbox_inches=bbox_inches)
@@ -338,7 +346,7 @@ async def extendedhelp(ctx):
 
 
 # check if calendar id exists. save calendar with reference to the server and channel
-async def registerCalendar(ctx, args):
+async def registerCalendar(ctx, args): # register calendarId (opitonal: colorHEX)
     if len(args) <= 1:
         await ctx.send(f"To register a Google Calendar: \n"
                        f"1. Visit https://calendar.google.com/calendar\n"
@@ -351,14 +359,24 @@ async def registerCalendar(ctx, args):
     else:
         calendar_id_raw = args[1]
         calendarID = str(calendar_id_raw)
-        # try to reach the calendar ID
 
+        # process optional color argument
+        set_Custom_color = False
+        custom_color = ""
+        if len(args) >= 3:
+            color_raw = args[2]
+            if is_valid_hexa_code(color_raw):
+                set_Custom_color = True
+                custom_color = color_raw
+
+
+        # try to reach the calendar ID
         # authenticate access through an email address invited to have access to the calendars.
         delegated_credentials = get_delegate_credentials()
         service = build('calendar', 'v3', credentials=delegated_credentials)
         try:
             cal_data = service.events().list(calendarId=calendarID, maxResults=2).execute()
-            cal_name = cal_name = cal_data['summary']
+            cal_name = cal_data['summary']
         except HttpError as e:
             await ctx.send(f"Calendar Bot was unable to access this Calendar. "
                            f"Please make sure to invite the Email address: {SERVICE_ACCOUNT_EMAIL} to have "
@@ -368,10 +386,49 @@ async def registerCalendar(ctx, args):
                            f"Calendar Bot has encountered the following Error: {e}")
             return
         channel_id = str(ctx.channel.id)
-        calendar_ids_for_this_channel = saveCalendarForChannel(ctx, channel_id, calendar_id_raw)
+        if set_Custom_color:
+            calendar_ids_for_this_channel = saveCalendarForChannel(ctx, channel_id, calendar_id_raw, cal_name,
+                                                                   custom_color, True)
+        else:
+            calendar_ids_for_this_channel = saveCalendarForChannel(ctx, channel_id, calendar_id_raw, cal_name)
         await ctx.send(
-            f"Calendar Bot now knows that {len(calendar_ids_for_this_channel)} calendar(s) belong to this channel")
+            f"Successfully registered Calendar. Calendar Bot now knows that {len(calendar_ids_for_this_channel)} calendar(s) belong to this channel")
     pass
+
+
+import re
+
+
+def is_valid_hexa_code(string):
+    hexa_code = re.compile(r'^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$')
+    return bool(re.match(hexa_code, string))
+
+
+async def setCalendarColor(ctx, args):  # args: setcolor id HEX
+    known_calendar_ids = getSavedCalendarsForChannel(str(ctx.channel.id))
+    if(len(known_calendar_ids) == 0):
+        await ctx.send("Calendar Bot does not know any Calendars associated with this channel."
+                        " Use `!calendar register` to learn how to register a calendar.")
+        return
+
+    if len(args) < 3:  # no calender specified
+        await ctx.send(f"Please specify a calendarId and a color\n"
+                       f"Known Calendar Ids: `{known_calendar_ids}`\n"
+                       f"`!calendar setcolor calendar_id HEX_color_code`")
+    else:
+        calendar_id_raw = args[1]
+        calendarID = str(calendar_id_raw)
+        color_raw = args[2]
+        if not is_valid_hexa_code(color_raw):
+            await ctx.send("The color you provided is not in HEX format. It should look similar to this: #292f72")
+        else:
+            if calendarID not in known_calendar_ids:
+                await ctx.send(
+                    f"Calendar Bot does not know this calendar Id yet. {len(known_calendar_ids)} calendar(s) belong to this channel. Check `!calendar info` for registered Calendars.\n"
+                    f"Register and apply your color with `!calendar register {calendarID} {color_raw}`")
+            else:
+                saveCalendarForChannel(ctx, str(ctx.channel.id), calendar_id_raw, color=color_raw, setCustomColor=True)
+                await ctx.send("Successfully changed the calendar color.")
 
 
 async def notify_event_creation(ctx, args):
@@ -589,7 +646,8 @@ def saveWatchData(discord_channel, channel: str, calendarid: str, token: str, id
     return data[channel]["watch"]
 
 
-def saveCalendarForChannel(ctx, channel: str, calendarid: str):
+def saveCalendarForChannel(ctx, channel: str, calendarid: str, cal_name: str = "unnamed",
+                           color="#292f72", setCustomColor = False):
     if os.path.exists(saved_calendar_path):
         f = open(saved_calendar_path)
         data = json.load(f)
@@ -601,17 +659,20 @@ def saveCalendarForChannel(ctx, channel: str, calendarid: str):
         saved_channel = data[channel]
         if "display" in saved_channel:
             if calendarid in saved_channel["display"]:
-                ctx.send("Calendar Bot already knows this Calendar-ID is associated with this channel")
+                if setCustomColor:
+                    saved_channel["display"][calendarid]["color"] = color
+                    ctx.send("Successfully updated calendar color")
+                else:
+                    ctx.send("Calendar Bot already knows this Calendar-ID is associated with this channel")
             else:
-                calendarids = saved_channel["display"]
-                calendarids.append(calendarid)
-                data[channel][
-                    "display"] = calendarids  # add new calendar id to already saved list of calendar ids for this channel
+                saved_channel["display"][calendarid] = {"name": cal_name, "color": color}
         else:  # channel is known but no display section yet.
-            data[channel]["display"] = [calendarid]
+            data[channel]["display"] = {}
+            data[channel]["display"][calendarid] = {"name": cal_name, "color": color}
     else:
         data[channel] = {}
-        data[channel]["display"] = [calendarid]  # this is the first calendar id for this channel
+        data[channel]["display"] = {}
+        data[channel]["display"][calendarid] = {"name": cal_name, "color": color}  # this is the first calendar id for this channel
 
     # saving channels and their associated calendar ids in a json file
     print("writing json ", json)
