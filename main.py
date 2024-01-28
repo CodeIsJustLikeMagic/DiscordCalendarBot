@@ -70,6 +70,10 @@ async def calendar(ctx, *args):
         await setCalendarColor(ctx, args)
         return
 
+    if task_desc == "autodisplay" or task_desc == "autoshow" or task_desc == "autotable":
+        await setAutoDisplay(ctx, args)
+        return
+
     if task_desc == "display" or task_desc == "show" or task_desc == "table" or task_desc == "showtable":
         await showDays(ctx, args, True)
         return
@@ -96,7 +100,18 @@ async def calendar(ctx, *args):
 
 # retrieves events in the next few days from all calendars registered to the channel that issued the command.
 # either compiles result into text or image response
-async def showDays(ctx, args, asImage=False): #args: show day_count clanedar_name_filter
+async def showDays(ctx, args, asImage = False, channelid = -1): #args: show day_count clanedar_name_filter
+    if ctx == None: # for sceduled auto table show, provides channelid instead of ctx object
+        ctx = bot.get_channel(channelid)# this is the same as ctx.channel. So one level down,
+        # send works the same but accessing the id is different.
+        if ctx == None:
+            print("Discord Channel for a auto table show could not be found in discord. "
+                "Channel might be deleted.")
+            return
+    if channelid == -1:
+        channel = str(ctx.channel.id)
+    else:
+        channel = str(channelid)
     days = 7
     calendar_name_filter = None
     if len(args) > 1:
@@ -115,7 +130,7 @@ async def showDays(ctx, args, asImage=False): #args: show day_count clanedar_nam
         days=days + 1)  # set to days+1 at 00:00:00.
     maxtime = maxtime.isoformat() + "Z"
 
-    calendar_ids = getSavedCalendarsForChannel(str(ctx.channel.id))
+    calendar_ids = getSavedCalendarsForChannel(channel)
 
     if len(calendar_ids) == 0:
         await ctx.send("Calendar Bot does not know any Calendars associated with this channel.\n"
@@ -173,7 +188,7 @@ async def showDays(ctx, args, asImage=False): #args: show day_count clanedar_nam
         else:
             await showAsText(ctx, discord_events)
     else:
-        await ctx.send(f"¯\_(ツ)_/¯\nNo events in calendar in the next {days} days.")
+        await ctx.send(f"¯\_(ツ)_/¯ No events in calendar in the next {days} days.")
 
 
 # compile events into a text response
@@ -305,12 +320,19 @@ async def showAsImage(ctx, event, calcount):  # pretty table
 # show a list of commands with description
 async def help(ctx):
     await ctx.send(f"Calendar Bot can display a Google Calendar or notify you of newly created events.\n\n"
-                   f"Commands:\n"
-                   f"`!calendar register <Google Calendar ID>` Calendar Bot will remember your Google Calendar and can later display it. You can register multiple Calendars in a single Channel.\n"
-                   f"For detailed help with the register command :`!calendar register`.\n"
+                   f"Display Commands:\n"
                    f"`!calendar display` show Events in the registered Calendars for the next 7 days.\n"
                    f"`!calendar display 14` You can adjust the timespan for the displayed Events. Here the timespan is set to 14 days.\n"
                    f"`!calendar display 7 \"<calendar name>\"` Calendar Bot can display a specific calendar indicated by their name.\n"
+                   f"`!calendar showtext` shows Events as a text message.\n"
+                   f"`!calendar showtext 14` adjust timespan for Events in the text message.\n"
+                   f" \nSet up and Register Calendars\n"
+                   f"`!calendar register <Google Calendar ID>` Calendar Bot will remember your Google Calendar and can later display it. You can register multiple Calendars in a single Channel.\n"
+                   f"For detailed help with the register command :`!calendar register`.\n"
+                   f"`!calendar setcolor <Google Calendar ID> <HEX color code>` customize a calendar's color for display.\n"
+                   f"`!calendar autodisplay` Calendar Bot will automatically display registered calendars every monday.\n"
+                   f"`!calendar autodisplay <1-7 to indicate weekday>` adjust the weekday for autodisplay.\n"
+                   f"`!calendar autodisplay 0` disable autodisplay.\n"
                    f"`!calendar watch <Google Calendar ID>` Calendar Bot will notify you of newly created Events for the given Calendar.\n"
                    f"`!calendar info` Calendar Bot shows you which calendars are registered or watched in this channel.\n"
                    f"`!calendar help` displays this help message again.\n"
@@ -340,7 +362,11 @@ async def extendedhelp(ctx):
 
 
                    f"There are a few alternative command names:\n"
-                   f"`!calendar display` = `!calendar show`\n"
+                   f"`!calendar display` = `!calendar showtable` = `!calendar table` = `!calendar show`\n"
+                   f"`!calendar showtext` = `!calendar text` = `!calendar message`\n"
+                   f"`!calendar setcolor` = `!calendar color` = `!calendar setColor` = `!calendar calendarcolor`\n"
+                   f"`!calendar autodisplay` = `!calendar autoshow` = `!calendar autotable`\n"
+                   f"`!calendar watch` = `push` = `notifyeventcreation`\n"
                    f"`!calendar watch` = `push` = `notifyeventcreation`\n"
                    f"`!calendar info` = `channelinfo`= `channel-info` = `\"channel info\"`")
 
@@ -408,7 +434,7 @@ async def setCalendarColor(ctx, args):  # args: setcolor id HEX
     known_calendar_ids = getSavedCalendarsForChannel(str(ctx.channel.id))
     if(len(known_calendar_ids) == 0):
         await ctx.send("Calendar Bot does not know any Calendars associated with this channel."
-                        " Use `!calendar register` to learn how to register a calendar.")
+                        " Use `!calendar register` to register a calendar.")
         return
 
     if len(args) < 3:  # no calender specified
@@ -430,6 +456,30 @@ async def setCalendarColor(ctx, args):  # args: setcolor id HEX
                 saveCalendarForChannel(ctx, str(ctx.channel.id), calendar_id_raw, color=color_raw, setCustomColor=True)
                 await ctx.send("Successfully changed the calendar color.")
 
+
+async def setAutoDisplay(ctx, args): # args autodisplay 1
+    known_calendar_ids = getSavedCalendarsForChannel(str(ctx.channel.id))
+    if(len(known_calendar_ids) == 0):
+        await ctx.send("Calendar Bot does not know any Calendars associated with this channel."
+                        " Use `!calendar register` to register a calendar.")
+        return
+
+    if len(args) >= 2:
+        weekday = args[1]
+    else:
+        weekday = "1" # default is Monday :)
+    if not weekday.isdigit():
+        await ctx.send("Please specify the weekday as a numer between 1 and 7.\n"
+                       "1 = Monday, 2 = Tuesday, etc\n"
+                       "For example: `!calendar autodisplay 1` will display a table view every monday.")
+    else:
+        weekday = int(weekday)
+        saveAutoDisplayWeekday(ctx, str(ctx.channel.id), weekday)
+        weekday_strings = ['monday', 'tuesday', 'wednesday', "thursday", "friday", "saturday", "sunday"]
+        if weekday >= 1 and weekday <= 7:
+            await ctx.send(f"Every {weekday_strings[weekday-1]} Calendar Bot will automatically display your next week.")
+        else:
+            await ctx.send(f"{weekday} is not a number between 1 and 7. Calendar Bot will *not* automatically display your next week.")
 
 async def notify_event_creation(ctx, args):
     if len(args) <= 1:
@@ -482,7 +532,6 @@ async def _create_new_watch_subscription(discord_channel, calendarID: str, chann
         await discord_channel.send(
             f"Calendar Bot encountered an error when asking google calendar api to make push notifications for the Calendar-ID. {err}")
         print(err)
-
 
 async def new_event_creation_callback_display(Goog_Resource_URI, Goog_Channel_Expireation, Goog_Channel_Token,
                                               Goog_Channel_Id):
@@ -680,6 +729,22 @@ def saveCalendarForChannel(ctx, channel: str, calendarid: str, cal_name: str = "
         json.dump(data, f)
     return data[channel]["display"]
 
+def saveAutoDisplayWeekday(ctx, channel:str, weekday:int):
+    if os.path.exists(saved_calendar_path):
+        f = open(saved_calendar_path)
+        data = json.load(f)
+        f.close()
+    else:
+        data = {}
+
+    if channel in data:
+        saved_channel = data[channel]
+        saved_channel["autoDisplayTable"] = weekday
+
+    print("writing json ", json)
+    with open(saved_calendar_path, 'w') as f:
+        json.dump(data, f)
+    return data[channel]["autoDisplayTable"]
 
 def cnt_loop():
     while (True):
@@ -714,8 +779,16 @@ def cnt_loop():
                         asyncio.run_coroutine_threadsafe(
                             _create_new_watch_subscription(None, cal_id, int(channel)),
                             bot.loop)
+            if 'autoDisplayTable' in channeldata:
+                displayWeekDay = channeldata['autoDisplayTable']
+                today = datetime.datetime.today()
+                if today.isoweekday() == displayWeekDay:# and today.hour < 12: # 1= Monday, 2 = Tuesday, 3 ...
+                    # should show table at some time between 0 and 8 o'clock
+                    print(f"trigger auto show for channel {channel}")
+                    asyncio.run_coroutine_threadsafe(showDays(None, {"show"}, asImage=True, channelid=int(channel)),
+                                                     bot.loop)
 
-        time.sleep(28600)
+        time.sleep(28600) # wait for 8 hours
 
         # check all watched calendars and renew their notification channels
 
@@ -723,8 +796,7 @@ def cnt_loop():
 
 
 def start_cnt_Thread():
-    t = threading.Thread(name="count", target=cnt_loop)
-    t.setDaemon(True)
+    t = threading.Thread(name="count", target=cnt_loop, daemon=True)
     t.start()
 
 
