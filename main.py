@@ -100,13 +100,13 @@ async def calendar(ctx, *args):
 
 # retrieves events in the next few days from all calendars registered to the channel that issued the command.
 # either compiles result into text or image response
-async def showDays(ctx, args, asImage = False, channelid = -1): #args: show day_count clanedar_name_filter
-    if ctx == None: # for sceduled auto table show, provides channelid instead of ctx object
-        ctx = bot.get_channel(channelid)# this is the same as ctx.channel. So one level down,
+async def showDays(ctx, args, asImage=False, channelid=-1):  # args: show day_count clanedar_name_filter
+    if ctx == None:  # for sceduled auto table show, provides channelid instead of ctx object
+        ctx = bot.get_channel(channelid)  # this is the same as ctx.channel. So one level down,
         # send works the same but accessing the id is different.
         if ctx == None:
             print("Discord Channel for a auto table show could not be found in discord. "
-                "Channel might be deleted.")
+                  "Channel might be deleted.")
             return
     if channelid == -1:
         channel = str(ctx.channel.id)
@@ -122,12 +122,20 @@ async def showDays(ctx, args, asImage = False, channelid = -1): #args: show day_
         calendar_name_filter = [args[2]]
 
     today = datetime.datetime.utcnow().date()
+
+    if asImage:  # set startday to the last monday for table view
+        last_monday = today - datetime.timedelta(days=today.weekday())
+        days = days + today.weekday()  # shift maxtime forward
+        today = last_monday
+        angebrochene_woche = days % 7
+        if angebrochene_woche > 0:  # set day count to a multiple of 7. always fills whole week
+            days = days + (7 - angebrochene_woche)
     mintime = datetime.datetime(today.year, today.month, today.day)  # sets time to 00:00:00
     mintime = mintime.isoformat() + 'Z'
 
     print(mintime)
     maxtime = datetime.datetime(today.year, today.month, today.day) + datetime.timedelta(
-        days=days + 1)  # set to days+1 at 00:00:00.
+        days=days)  # set to days+1 at 00:00:00.
     maxtime = maxtime.isoformat() + "Z"
 
     calendar_ids = getSavedCalendarsForChannel(channel)
@@ -154,8 +162,7 @@ async def showDays(ctx, args, asImage = False, channelid = -1): #args: show day_
             # response = requests.get(url)
 
             cal_name = cal_data['summary']
-            cal_color = calendar_ids[calendarId][
-                "color"]  # sadly cannot retreive colors from api. Let users set color for discord bot
+            cal_color = calendar_ids[calendarId]['color']  # sadly cannot retreive colors from api. Let users set color for discord bot
 
             if calendar_name_filter is not None:
                 if cal_name not in calendar_name_filter:
@@ -184,11 +191,14 @@ async def showDays(ctx, args, asImage = False, channelid = -1): #args: show day_
 
     if len(discord_events) > 0:
         if asImage:
-            await showAsImage(ctx, discord_events, len(calendar_ids))
+            await showAsImage(ctx, discord_events)
         else:
             await showAsText(ctx, discord_events)
     else:
         await ctx.send(f"¯\_(ツ)_/¯ No events in calendar in the next {days} days.")
+
+    if channelid != -1:  # when called by autodisplay
+        await ctx.send(f"Calendar display triggered by autodisplay function. Type `!calendar help` to learn more.")
 
 
 # compile events into a text response
@@ -202,7 +212,7 @@ async def showAsText(ctx, discord_events):
 
 
 # compile events into an image response
-async def showAsImage(ctx, event, calcount):  # pretty table
+async def showAsImage(ctx, event):  # pretty table
     # using matplotlib to draw events as table graphic
     plt.rcParams["figure.autolayout"] = True
     # plt.rcParams.update({'text.color': "black"})
@@ -210,6 +220,7 @@ async def showAsImage(ctx, event, calcount):  # pretty table
     # style info
     bgc = "#2b2d31"  # background color
     dc = "#383a40"  # date row color
+    today_c = "#595c66" # date row color for today
     color_edges = "#4e5058"  # color of the table edges
     color_font = "#ffffff"  # color of font in image
     weekday_strings = ['Monday', 'Tuesday', 'Wednesday', "Thursday", "Friday", "Saturday", "Sunday"]
@@ -231,21 +242,31 @@ async def showAsImage(ctx, event, calcount):  # pretty table
 
     startdate = time.asctime(time.strptime('2024 %d 1' % first_week_num, '%Y %W %w'))
     startdate = datetime.datetime.strptime(startdate, '%a %b %d %H:%M:%S %Y')
+
+    # find maximum number of events on a single day in the observed time. -> needed to draw pretty table
+    events_by_date = [[(d, x) for d, x in event if d.date() == day_dt.date()] for day_dt in
+                      [startdate + datetime.timedelta(days=i) for i in range(total_weeks*7 + 1)]]
+    max_events_in_week = max([len(eventlist) for eventlist in events_by_date])
+
     for week in range(0, total_weeks):
         week_data = []
         week_colors = []
         datesOfWeek_dt = [startdate + datetime.timedelta(days=7 * week + i) for i in range(7)]
-
-        print(datesOfWeek_dt)
-        for day_dt in datesOfWeek_dt:
-            relevant_events = [(d, x) for d, x in event if d.date() == day_dt.date()]
+        # bug: you can have more than calcount events on one day by having more than one event per calendar on a given day
+        # solution: get a list of relevant_events per day first, get max found amount of events per day as calcount.
+        # will dynamically expand/shrink size of table to fit all events
+        events_by_weekday = [[(d, x) for d, x in event if d.date() == day_dt.date()] for day_dt in datesOfWeek_dt]
+        for relevant_events, day_dt in zip(events_by_weekday, datesOfWeek_dt):
             event_strings = np.array([f"{d.strftime('%H:%M')} {x[2]}" for d, x in relevant_events])
-            filler = np.array(["" for _ in range(calcount - len(relevant_events))])
+            filler = np.array(["" for _ in range(max_events_in_week - len(relevant_events))])
             day_data = np.concatenate((np.array([day_dt.strftime("%d.%m.%Y")]), event_strings, filler))
 
             event_colors = np.array([x[4] for d, x in relevant_events])
-            filler_colors = np.array([bgc for _ in range(calcount - len(relevant_events))])
-            day_color = np.concatenate(([dc], event_colors, filler_colors))
+            filler_colors = np.array([bgc for _ in range(max_events_in_week - len(relevant_events))])
+            date_color = dc
+            if day_dt.date() == datetime.date.today():
+                date_color = today_c
+            day_color = np.concatenate(([date_color], event_colors, filler_colors))
             # day_color = [dc, bgc, bgc]
             # for day in week
             # [date, events at that date, filled up with "" to get to calcount]
@@ -300,7 +321,7 @@ async def showAsImage(ctx, event, calcount):  # pretty table
             cellDict[(j, i)].set_edgecolor(color_edges)
             cellDict[(j, i)].set_text_props(color=color_font, ha="left")
             cellDict[(j, i)].PAD = 0.03
-        for j in range(1, len(table_data), calcount + 1):  # date rows
+        for j in range(1, len(table_data), max_events_in_week + 1):  # date rows
             cellDict[(j, i)].set_height(.1)
 
     ytable.set_fontsize(14)
@@ -308,7 +329,7 @@ async def showAsImage(ctx, event, calcount):  # pretty table
 
     fig.canvas.draw()
     bbox = ytable.get_window_extent(fig.canvas.get_renderer())
-    bbox = bbox.from_extents(bbox.xmin - 0, bbox.ymin - 0, bbox.xmax + 2, bbox.ymax + 1)
+    #bbox = bbox.from_extents(bbox.xmin - 0, bbox.ymin - 0, bbox.xmax + 2, bbox.ymax + 1)
     bbox_inches = bbox.transformed(fig.dpi_scale_trans.inverted())
 
     fig.savefig('calendar.png', bbox_inches=bbox_inches)
@@ -367,12 +388,11 @@ async def extendedhelp(ctx):
                    f"`!calendar setcolor` = `!calendar color` = `!calendar setColor` = `!calendar calendarcolor`\n"
                    f"`!calendar autodisplay` = `!calendar autoshow` = `!calendar autotable`\n"
                    f"`!calendar watch` = `push` = `notifyeventcreation`\n"
-                   f"`!calendar watch` = `push` = `notifyeventcreation`\n"
                    f"`!calendar info` = `channelinfo`= `channel-info` = `\"channel info\"`")
 
 
 # check if calendar id exists. save calendar with reference to the server and channel
-async def registerCalendar(ctx, args): # register calendarId (opitonal: colorHEX)
+async def registerCalendar(ctx, args):  # register calendarId (opitonal: colorHEX)
     if len(args) <= 1:
         await ctx.send(f"To register a Google Calendar: \n"
                        f"1. Visit https://calendar.google.com/calendar\n"
@@ -394,7 +414,6 @@ async def registerCalendar(ctx, args): # register calendarId (opitonal: colorHEX
             if is_valid_hexa_code(color_raw):
                 set_Custom_color = True
                 custom_color = color_raw
-
 
         # try to reach the calendar ID
         # authenticate access through an email address invited to have access to the calendars.
@@ -432,9 +451,9 @@ def is_valid_hexa_code(string):
 
 async def setCalendarColor(ctx, args):  # args: setcolor id HEX
     known_calendar_ids = getSavedCalendarsForChannel(str(ctx.channel.id))
-    if(len(known_calendar_ids) == 0):
+    if (len(known_calendar_ids) == 0):
         await ctx.send("Calendar Bot does not know any Calendars associated with this channel."
-                        " Use `!calendar register` to register a calendar.")
+                       " Use `!calendar register` to register a calendar.")
         return
 
     if len(args) < 3:  # no calender specified
@@ -457,17 +476,17 @@ async def setCalendarColor(ctx, args):  # args: setcolor id HEX
                 await ctx.send("Successfully changed the calendar color.")
 
 
-async def setAutoDisplay(ctx, args): # args autodisplay 1
+async def setAutoDisplay(ctx, args):  # args autodisplay 1
     known_calendar_ids = getSavedCalendarsForChannel(str(ctx.channel.id))
-    if(len(known_calendar_ids) == 0):
+    if (len(known_calendar_ids) == 0):
         await ctx.send("Calendar Bot does not know any Calendars associated with this channel."
-                        " Use `!calendar register` to register a calendar.")
+                       " Use `!calendar register` to register a calendar.")
         return
 
     if len(args) >= 2:
         weekday = args[1]
     else:
-        weekday = "1" # default is Monday :)
+        weekday = "1"  # default is Monday :)
     if not weekday.isdigit():
         await ctx.send("Please specify the weekday as a numer between 1 and 7.\n"
                        "1 = Monday, 2 = Tuesday, etc\n"
@@ -477,9 +496,12 @@ async def setAutoDisplay(ctx, args): # args autodisplay 1
         saveAutoDisplayWeekday(ctx, str(ctx.channel.id), weekday)
         weekday_strings = ['monday', 'tuesday', 'wednesday', "thursday", "friday", "saturday", "sunday"]
         if weekday >= 1 and weekday <= 7:
-            await ctx.send(f"Every {weekday_strings[weekday-1]} Calendar Bot will automatically display your next week.")
+            await ctx.send(
+                f"Every {weekday_strings[weekday - 1]} Calendar Bot will automatically display your next week.")
         else:
-            await ctx.send(f"{weekday} is not a number between 1 and 7. Calendar Bot will *not* automatically display your next week.")
+            await ctx.send(
+                f"{weekday} is not a number between 1 and 7. Calendar Bot will *not* automatically display your next week.")
+
 
 async def notify_event_creation(ctx, args):
     if len(args) <= 1:
@@ -532,6 +554,7 @@ async def _create_new_watch_subscription(discord_channel, calendarID: str, chann
         await discord_channel.send(
             f"Calendar Bot encountered an error when asking google calendar api to make push notifications for the Calendar-ID. {err}")
         print(err)
+
 
 async def new_event_creation_callback_display(Goog_Resource_URI, Goog_Channel_Expireation, Goog_Channel_Token,
                                               Goog_Channel_Id):
@@ -696,7 +719,7 @@ def saveWatchData(discord_channel, channel: str, calendarid: str, token: str, id
 
 
 def saveCalendarForChannel(ctx, channel: str, calendarid: str, cal_name: str = "unnamed",
-                           color="#292f72", setCustomColor = False):
+                           color="#292f72", setCustomColor=False):
     if os.path.exists(saved_calendar_path):
         f = open(saved_calendar_path)
         data = json.load(f)
@@ -721,7 +744,8 @@ def saveCalendarForChannel(ctx, channel: str, calendarid: str, cal_name: str = "
     else:
         data[channel] = {}
         data[channel]["display"] = {}
-        data[channel]["display"][calendarid] = {"name": cal_name, "color": color}  # this is the first calendar id for this channel
+        data[channel]["display"][calendarid] = {"name": cal_name,
+                                                "color": color}  # this is the first calendar id for this channel
 
     # saving channels and their associated calendar ids in a json file
     print("writing json ", json)
@@ -729,7 +753,8 @@ def saveCalendarForChannel(ctx, channel: str, calendarid: str, cal_name: str = "
         json.dump(data, f)
     return data[channel]["display"]
 
-def saveAutoDisplayWeekday(ctx, channel:str, weekday:int):
+
+def saveAutoDisplayWeekday(ctx, channel: str, weekday: int):
     if os.path.exists(saved_calendar_path):
         f = open(saved_calendar_path)
         data = json.load(f)
@@ -745,6 +770,7 @@ def saveAutoDisplayWeekday(ctx, channel:str, weekday:int):
     with open(saved_calendar_path, 'w') as f:
         json.dump(data, f)
     return data[channel]["autoDisplayTable"]
+
 
 def cnt_loop():
     while (True):
@@ -782,13 +808,13 @@ def cnt_loop():
             if 'autoDisplayTable' in channeldata:
                 displayWeekDay = channeldata['autoDisplayTable']
                 today = datetime.datetime.today()
-                if today.isoweekday() == displayWeekDay:# and today.hour < 12: # 1= Monday, 2 = Tuesday, 3 ...
+                if today.isoweekday() == displayWeekDay and today.hour < 12:  # 1= Monday, 2 = Tuesday, 3 ...
                     # should show table at some time between 0 and 8 o'clock
                     print(f"trigger auto show for channel {channel}")
                     asyncio.run_coroutine_threadsafe(showDays(None, {"show"}, asImage=True, channelid=int(channel)),
                                                      bot.loop)
 
-        time.sleep(28600) # wait for 8 hours
+        time.sleep(28600)  # wait for 8 hours
 
         # check all watched calendars and renew their notification channels
 
