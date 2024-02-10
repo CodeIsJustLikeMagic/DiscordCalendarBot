@@ -170,24 +170,48 @@ async def showDays(ctx, args, asImage=False, channelid=-1):  # args: show day_co
             events = cal_data['items']
 
             for event in events:
-                start = (event['start'])
-                if 'date' in start:
-                    date_s = start['date']  # for events that take the full day
-                    date_time = datetime.datetime.strptime(date_s, "%Y-%m-%d")
-                    date = date_time.strftime("%d.%m.%Y")
-                else:
-                    date_s = start['dateTime']
-                    date_s = date_s.split("+")[0]
-                    date_time = datetime.datetime.strptime(date_s, "%Y-%m-%dT%H:%M:%S")
-                    date = date_time.strftime("%d.%m.%Y   %H:%M")
                 event_name = event['summary']
-                discord_event_info = (date_time.strftime('%A'), str(date), event_name, cal_name, cal_color)
-                discord_events.append((date_time, discord_event_info))
+
+                start = (event['start'])
+                if 'date' in start: # events that take the full day
+                    date_start = start['date']
+                    date_start = datetime.datetime.strptime(date_start, "%Y-%m-%d")
+                    date_start_pretty = date_start.strftime("%d.%m.%Y")
+                else:
+                    date_start = start['dateTime'].split("+")[0] # events that take a few hours
+                    date_start = datetime.datetime.strptime(date_start, "%Y-%m-%dT%H:%M:%S")
+                    date_start_pretty = date_start.strftime("%d.%m.%Y   %H:%M")
+
+                end = (event['end'])
+                if 'date' in end:
+                    date_end = end['date']
+                    date_end = datetime.datetime.strptime(date_end, "%Y-%m-%d")
+                    date_end = date_end - datetime.timedelta(minutes=1)
+                else:
+                    date_end = end['dateTime'].split("+")[0]
+                    date_end = datetime.datetime.strptime(date_end, "%Y-%m-%dT%H:%M:%S")
+
+
+                discord_event_info = (date_start.strftime('%A'), str(date_start_pretty), event_name, cal_name, cal_color)
+                discord_events.append((date_start, discord_event_info))
+
+                # some events may last multiple days. Discord_event assumes that events last only one day. and only displys their start.
+                # add an event for each date that the event lasts.
+                lasts_days = (date_end - date_start).days
+                additional_dates = [datetime.datetime.combine(day_dt, datetime.time.min) for day_dt in
+                                    [date_start + datetime.timedelta(days=i) for i in range(1, lasts_days+1)]]
+                for date in additional_dates:
+                    discord_event_info = (date.strftime('%A'), str(date.strftime("%d.%m.%Y")), event_name, cal_name, cal_color)
+                    discord_events.append((date, discord_event_info))
+
+
         except HttpError:
             await ctx.send(
                 f"Calendar Bot was not granted access to the Calendar with ID {calendarId}. Please make sure to invite the Email address: {SERVICE_ACCOUNT_EMAIL} to have access to your Google Calendar. Display instructions with `!calendar register`")
             print()
             return
+        except Exception as e:
+            print("Error in showDays ",e)
 
     if len(discord_events) > 0:
         if asImage:
@@ -257,7 +281,9 @@ async def showAsImage(ctx, event):  # pretty table
         # will dynamically expand/shrink size of table to fit all events
         events_by_weekday = [[(d, x) for d, x in event if d.date() == day_dt.date()] for day_dt in datesOfWeek_dt]
         for relevant_events, day_dt in zip(events_by_weekday, datesOfWeek_dt):
-            event_strings = np.array([f"{d.strftime('%H:%M')} {x[2]}" for d, x in relevant_events])
+
+            event_strings = np.array([f"{d.strftime('%H:%M')} {x[2]}" if d.time() != datetime.time(0, 0) else f"{x[2]}"
+                                      for d, x in relevant_events])
             filler = np.array(["" for _ in range(max_events_in_week - len(relevant_events))])
             day_data = np.concatenate((np.array([day_dt.strftime("%d.%m.%Y")]), event_strings, filler))
 
